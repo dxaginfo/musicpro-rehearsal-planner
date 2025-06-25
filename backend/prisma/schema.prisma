@@ -1,0 +1,161 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String           @id @default(uuid())
+  email            String           @unique
+  passwordHash     String
+  firstName        String
+  lastName         String
+  phone            String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  groupMemberships GroupMember[]
+  createdGroups    Group[]          @relation("GroupCreator")
+  createdRehearsals Rehearsal[]     @relation("RehearsalCreator")
+  availability     UserAvailability[]
+  unavailableDates UnavailableDate[]
+  attendance       Attendance[]
+  uploadedFiles    File[]
+}
+
+model Group {
+  id               String         @id @default(uuid())
+  name             String
+  description      String?
+  createdBy        User           @relation("GroupCreator", fields: [createdById], references: [id])
+  createdById      String
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  members          GroupMember[]
+  rehearsals       Rehearsal[]
+  repertoire       Repertoire[]
+}
+
+model GroupMember {
+  id               String         @id @default(uuid())
+  group            Group          @relation(fields: [groupId], references: [id])
+  groupId          String
+  user             User           @relation(fields: [userId], references: [id])
+  userId           String
+  role             String         // 'admin', 'manager', 'member'
+  instrument       String?
+  section          String?
+  joinedAt         DateTime       @default(now())
+
+  @@unique([groupId, userId])
+}
+
+model Rehearsal {
+  id               String         @id @default(uuid())
+  group            Group          @relation(fields: [groupId], references: [id])
+  groupId          String
+  title            String
+  description      String?
+  location         String?
+  startTime        DateTime
+  endTime          DateTime
+  isRecurring      Boolean        @default(false)
+  recurringPattern Json?          // Store recurring schedule patterns
+  createdBy        User           @relation("RehearsalCreator", fields: [createdById], references: [id])
+  createdById      String
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  attendance       Attendance[]
+  repertoire       RehearsalRepertoire[]
+}
+
+model UserAvailability {
+  id               String         @id @default(uuid())
+  user             User           @relation(fields: [userId], references: [id])
+  userId           String
+  dayOfWeek        Int?           // 0-6 for Sunday-Saturday
+  startTime        DateTime
+  endTime          DateTime
+  isAvailable      Boolean        @default(true)
+
+  @@unique([userId, dayOfWeek, startTime, endTime])
+}
+
+model UnavailableDate {
+  id               String         @id @default(uuid())
+  user             User           @relation(fields: [userId], references: [id])
+  userId           String
+  startDate        DateTime
+  endDate          DateTime
+  reason           String?
+  createdAt        DateTime       @default(now())
+}
+
+model Attendance {
+  id               String         @id @default(uuid())
+  rehearsal        Rehearsal      @relation(fields: [rehearsalId], references: [id])
+  rehearsalId      String
+  user             User           @relation(fields: [userId], references: [id])
+  userId           String
+  status           String         // 'confirmed', 'declined', 'tentative', 'no_response'
+  arrivalTime      DateTime?
+  departureTime    DateTime?
+  notes            String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@unique([rehearsalId, userId])
+}
+
+model Repertoire {
+  id               String         @id @default(uuid())
+  group            Group          @relation(fields: [groupId], references: [id])
+  groupId          String
+  title            String
+  composer         String?
+  arranger         String?
+  notes            String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  rehearsals       RehearsalRepertoire[]
+  files            File[]
+}
+
+model RehearsalRepertoire {
+  id               String         @id @default(uuid())
+  rehearsal        Rehearsal      @relation(fields: [rehearsalId], references: [id])
+  rehearsalId      String
+  repertoire       Repertoire     @relation(fields: [repertoireId], references: [id])
+  repertoireId     String
+  focusNotes       String?
+
+  @@unique([rehearsalId, repertoireId])
+}
+
+model File {
+  id               String         @id @default(uuid())
+  repertoire       Repertoire     @relation(fields: [repertoireId], references: [id])
+  repertoireId     String
+  fileName         String
+  fileType         String
+  fileUrl          String
+  uploadedBy       User           @relation(fields: [uploadedById], references: [id])
+  uploadedById     String
+  uploadedAt       DateTime       @default(now())
+}
+
+model Notification {
+  id               String         @id @default(uuid())
+  userId           String
+  title            String
+  message          String
+  type             String
+  relatedId        String?        // Could reference rehearsals, etc.
+  isRead           Boolean        @default(false)
+  createdAt        DateTime       @default(now())
+}
